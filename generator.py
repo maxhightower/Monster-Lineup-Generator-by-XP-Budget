@@ -37,7 +37,7 @@ def total_xp_counts(lineup: Counter, monsters_xp: Dict[str, int]) -> int:
 
 def _sorted_items(monsters_xp: Dict[str, int]) -> List[Tuple[str, int]]:
     # Sort by XP ascending (helps pruning)
-    return sorted(monsters_xp.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+    return sorted(monsters_xp.items(), key=lambda kv: (kv[1], kv[0]))
 
 def combos_under_budget_no_dupes(
     monsters_xp: Dict[str, int],
@@ -69,6 +69,8 @@ def combos_under_budget_no_dupes(
         # Every node (including empty) is a valid combo
         if stack_xp <= budget and (min_monsters is None or len(stack) >= min_monsters) and (threshold is None or stack_xp >= budget * threshold):
             lineups.append(list(stack))
+            if max_lineups is not None and len(lineups) >= max_lineups:
+                return True  # quota hit
 
         
         # Try to extend
@@ -84,12 +86,15 @@ def combos_under_budget_no_dupes(
         
             stack.append(name)
             stack_xp += xp
-        
-            #yield from dfs(i + 1)  # move to next index (no repeats)
-            dfs(i)
+
+            if dfs(i):
+                stack_xp -= xp
+                stack.pop()
+                return True
         
             stack_xp -= xp
             stack.pop()
+        return False
 
     dfs(0)
 
