@@ -3,16 +3,6 @@ from typing import Dict, List, Tuple, Iterator, Optional
 from collections import Counter
 from monsters import SRD_2014_MONSTERS_CR1_OR_LOWER as calling_all_the_monsters
 
-# define player character lineup entry dtype
-#party_dtype 
-
-# this is for level 1 only...
-monster_lineup_xp_budget = {
-    'easy': [25, 50, 75, 100],
-    'medium': [50, 100, 150, 200],
-    'hard': [75, 150, 225, 400],
-    'deadly': [100, 200, 400, 600]
-}
 
 # how can I make this scalable???
 xp_thresholds_by_character_level = [
@@ -47,45 +37,59 @@ def total_xp_counts(lineup: Counter, monsters_xp: Dict[str, int]) -> int:
 
 def _sorted_items(monsters_xp: Dict[str, int]) -> List[Tuple[str, int]]:
     # Sort by XP ascending (helps pruning)
-    return sorted(monsters_xp.items(), key=lambda kv: (kv[1], kv[0]))
+    return sorted(monsters_xp.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
 
 def combos_under_budget_no_dupes(
     monsters_xp: Dict[str, int],
     budget: int,
-    max_monsters: Optional[int] = None
+    max_monsters: Optional[int] = None,
+    min_monsters: Optional[int] = None,
+    threshold: Optional[int] = None,   # the minimum % of the budget that must be used
 ) -> Iterator[List[str]]:
     """
     Yield lists of monster names (no repeats) with total XP <= budget.
     Order within each list is lexicographic (by XP then name), not significant.
     """
+    # monsters from highest xp to lowest
     items = _sorted_items(monsters_xp)  # [(name, xp), ...]
-    n = len(items)
+    filter_items = [item for item in items if item[1] <= budget]
+    n = len(filter_items)
+
     stack: List[str] = []
     stack_xp = 0
 
     def dfs(start: int):
         nonlocal stack_xp
+
         # Every node (including empty) is a valid combo
-        if stack_xp <= budget:
+        if stack_xp <= budget and (min_monsters is None or len(stack) >= min_monsters) and (threshold is None or stack_xp >= budget * threshold):
             yield list(stack)
+        
         # Try to extend
         for i in range(start, n):
-            name, xp = items[i]
+            name, xp = filter_items[i]
+        
             if max_monsters is not None and len(stack) >= max_monsters:
                 break
+        
             if stack_xp + xp > budget:
                 # All further items are >= xp, so we can prune
                 break
+        
             stack.append(name)
             stack_xp += xp
+        
             yield from dfs(i + 1)  # move to next index (no repeats)
+        
             stack_xp -= xp
             stack.pop()
 
-    # Skip yielding the empty lineup unless budget == 0 is meaningful—filter outside if desired
-    for combo in dfs(0):
-        if combo:  # comment this line out if you want to include the empty set
-            yield combo
+    # add all valid lineups to a list and return that list
+    #valid_lineups = list(dfs(0))
+    #return valid_lineups
+    for lineup in dfs(0):
+        yield lineup
+
 
 
 
@@ -112,10 +116,13 @@ def generate_monster_lineup(party_comp: list, difficulty: str):
     tonight_all_the_monsters_gonna_dance = combos_under_budget_no_dupes(
         calling_all_the_monsters,
         total_xp_budget,
-        max_monsters=None
+        max_monsters=None,
+        min_monsters=None,
+        threshold=1
     )
+    
     print("Generated monster lineups:")
-    #for lineup in tonight_all_the_monsters_gonna_dance:
-    #    print(f"Lineup: {lineup}")
-    print(f"Counting lineups...{tonight_all_the_monsters_gonna_dance}")
+    for lineup in tonight_all_the_monsters_gonna_dance:
+        print(f"Lineup: {lineup}")
+    #print(f"Counting lineups...{tonight_all_the_monsters_gonna_dance}")
 
