@@ -45,6 +45,9 @@ def combos_under_budget_no_dupes(
     max_monsters: Optional[int] = None,
     min_monsters: Optional[int] = None,
     threshold: Optional[int] = None,   # the minimum % of the budget that must be used
+    max_lineups: Optional[int] = None,
+    min_lineups: Optional[int] = None,
+    random: bool = False,
 ) -> Iterator[List[str]]:
     """
     Yield lists of monster names (no repeats) with total XP <= budget.
@@ -58,12 +61,15 @@ def combos_under_budget_no_dupes(
     stack: List[str] = []
     stack_xp = 0
 
+    lineups: List[List[str]] = []
+
     def dfs(start: int):
         nonlocal stack_xp
 
         # Every node (including empty) is a valid combo
         if stack_xp <= budget and (min_monsters is None or len(stack) >= min_monsters) and (threshold is None or stack_xp >= budget * threshold):
-            yield list(stack)
+            lineups.append(list(stack))
+
         
         # Try to extend
         for i in range(start, n):
@@ -79,21 +85,43 @@ def combos_under_budget_no_dupes(
             stack.append(name)
             stack_xp += xp
         
-            yield from dfs(i + 1)  # move to next index (no repeats)
+            #yield from dfs(i + 1)  # move to next index (no repeats)
+            dfs(i)
         
             stack_xp -= xp
             stack.pop()
 
+    dfs(0)
+
+    if random:
+        np.random.shuffle(lineups)
+    
+    filtered = []
+    remaining = max_lineups
+    for lineup in lineups:
+        if min_lineups is not None and len(lineup) < min_lineups:
+            continue
+        filtered.append(lineup)
+        if max_lineups is not None:
+            remaining -= 1
+            if remaining == 0:
+                break
+
     # add all valid lineups to a list and return that list
+    return filtered
     #valid_lineups = list(dfs(0))
     #return valid_lineups
-    for lineup in dfs(0):
-        yield lineup
+    
 
 
 
-
-def generate_monster_lineup(party_comp: list, difficulty: str):
+def generate_monster_lineup(
+        party_comp: list, 
+        difficulty: str,
+        max_lineups: Optional[int] = None,
+        min_lineups: Optional[int] = None,
+        random: bool = False,
+        ):
     num_players = len(party_comp)
 
     # so the list contains the levels of the party members
@@ -118,11 +146,14 @@ def generate_monster_lineup(party_comp: list, difficulty: str):
         total_xp_budget,
         max_monsters=None,
         min_monsters=None,
-        threshold=1
+        threshold=1,
+        max_lineups=max_lineups,
+        min_lineups=min_lineups,
+        random=random,
     )
     
     print("Generated monster lineups:")
     for lineup in tonight_all_the_monsters_gonna_dance:
-        print(f"Lineup: {lineup}")
+        print(f"{lineup}")
     #print(f"Counting lineups...{tonight_all_the_monsters_gonna_dance}")
 
